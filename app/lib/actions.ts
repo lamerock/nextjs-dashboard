@@ -29,6 +29,7 @@ const CreateCustomer = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
   imageUrl: z.string().url({ message: 'Please enter a valid image URL.' }),
 });
+const UpdateCustomer = CreateCustomer;
 
 // Use Zod to update the expected types
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
@@ -48,6 +49,16 @@ export type CustomerState = {
     email?: string[];
     imageUrl?: string[];
   };
+  message?: string | null;
+};
+
+export type DeleteCustomerState = {
+  success?: boolean;
+  message?: string | null;
+};
+
+export type DeleteInvoiceState = {
+  success?: boolean;
   message?: string | null;
 };
 
@@ -159,16 +170,94 @@ export async function updateInvoice(
   redirect('/dashboard/invoices');
 }
 
-export async function deleteInvoice(id: string): Promise<void> {
-  // throw new Error('Failed to Delete Invoice');
+export async function updateCustomer(
+  id: string,
+  prevState: CustomerState,
+  formData: FormData,
+) {
+  const validatedFields = UpdateCustomer.safeParse({
+    name: formData.get('name'),
+    email: formData.get('email'),
+    imageUrl: formData.get('imageUrl'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Update Customer.',
+    };
+  }
+
+  const { name, email, imageUrl } = validatedFields.data;
+
+  try {
+    await sql`
+      UPDATE customers
+      SET name = ${name}, email = ${email}, image_url = ${imageUrl}
+      WHERE id = ${id}
+    `;
+  } catch (error) {
+    return { message: 'Database Error: Failed to Update Customer.' };
+  }
+
+  revalidatePath('/dashboard/customers');
+  redirect('/dashboard/customers');
+}
+
+export async function deleteInvoice(
+  id: string,
+  prevState: DeleteInvoiceState,
+) {
   try {
     await sql`DELETE FROM invoices WHERE id = ${id}`;
   } catch (error) {
-    console.error('Delete invoice failed:', error);
-    throw new Error('Database Error: Failed to Delete Invoice.');
+    return {
+      success: false,
+      message: 'Database Error: Failed to Delete Invoice.',
+    };
   }
 
   revalidatePath('/dashboard/invoices');
+  return {
+    success: true,
+    message: 'Invoice deleted successfully.',
+  };
+}
+
+export async function deleteCustomer(
+  id: string,
+  prevState: DeleteCustomerState,
+) {
+  try {
+    const invoices = await sql<{ count: string }[]>`
+      SELECT COUNT(*)
+      FROM invoices
+      WHERE customer_id = ${id}
+    `;
+
+    if (Number(invoices[0].count) > 0) {
+      return {
+        success: false,
+        message: 'Cannot delete customer with existing invoices.',
+      };
+    }
+
+    await sql`
+      DELETE FROM customers
+      WHERE id = ${id}
+    `;
+  } catch (error) {
+    return {
+      success: false,
+      message: 'Database Error: Failed to Delete Customer.',
+    };
+  }
+
+  revalidatePath('/dashboard/customers');
+  return {
+    success: true,
+    message: 'Customer deleted successfully.',
+  };
 }
 
 export async function authenticate(

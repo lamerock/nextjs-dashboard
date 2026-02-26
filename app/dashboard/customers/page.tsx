@@ -8,6 +8,7 @@ import { fetchCustomersPages } from '@/app/lib/data';
 import { CustomersTableSkeleton } from '@/app/ui/skeletons';
 import Link from 'next/link';
 import { PlusIcon } from '@heroicons/react/24/outline';
+import CustomerActionToast from '@/app/ui/customers/action-toast';
 
 export const metadata: Metadata = {
   title: 'Customers',
@@ -38,6 +39,7 @@ export default async function Page(props: {
 
   return (
     <div className="w-full">
+      <CustomerActionToast />
       <div className="flex w-full items-center justify-between">
         <h1 className={`${lusitana.className} text-2xl`}>Customers</h1>
       </div>
